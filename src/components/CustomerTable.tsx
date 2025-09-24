@@ -214,6 +214,9 @@ export const CustomerTable = ({ onAddCustomer, onAddBulkCustomers, onBulkEdit, o
     if (existing) return existing.toLocaleDateString('ar-EG');
     
     const base = parseDateAssume2025(charging);
+    today.setHours(0, 0, 0, 0);
+    renewalDate.setHours(0, 0, 0, 0);
+    
     if (!base) return 'غير محدد';
     
     const result = new Date(base);
@@ -345,7 +348,8 @@ export const CustomerTable = ({ onAddCustomer, onAddBulkCustomers, onBulkEdit, o
                   )}
                 </TableCell>
                 <TableCell>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
                     {formatRenewal(customer.charging_date, null, customer.provider)}
                   </div>
@@ -357,6 +361,23 @@ export const CustomerTable = ({ onAddCustomer, onAddBulkCustomers, onBulkEdit, o
                       <DollarSign className="h-4 w-4 text-muted-foreground" />
                       {customer.monthly_price} جنيه
                     </div>
+                    {(() => {
+                      const alert = getRenewalAlert(customer.charging_date, null, customer.provider);
+                      if (alert?.show) {
+                        return (
+                          <Badge 
+                            variant="destructive" 
+                            className="animate-pulse bg-red-600 text-white border-red-500 text-xs"
+                          >
+                            {alert.isToday ? 'التجديد اليوم!' : 
+                             alert.isTomorrow ? 'التجديد غداً!' : 
+                             `باقي ${alert.daysLeft} يوم للتجديد`}
+                          </Badge>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
                   ) : (
                     'غير محدد'
                   )}

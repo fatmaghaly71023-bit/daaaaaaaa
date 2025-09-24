@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Phone, Calendar, Wifi, Edit, Save, X } from "lucide-react";
+import { Phone, Calendar, Wifi, Edit, Save, X, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -30,6 +30,13 @@ interface SuggestedName {
   created_at: string;
   updated_at: string;
 }
+interface SuggestedName {
+  id: string;
+  mobile_number: string;
+  suggested_name: string;
+  created_at: string;
+  updated_at: string;
+}
 interface UserDashboardProps {
   userType: string;
   username: string;
@@ -37,6 +44,7 @@ interface UserDashboardProps {
 
 export const UserDashboard = ({ userType, username }: UserDashboardProps) => {
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [suggestedNames, setSuggestedNames] = useState<SuggestedName[]>([]);
   const [loading, setLoading] = useState(true);
   const [isEditingName, setIsEditingName] = useState(false);
   const [suggestedName, setSuggestedName] = useState("");
@@ -47,6 +55,9 @@ export const UserDashboard = ({ userType, username }: UserDashboardProps) => {
   useEffect(() => {
     fetchCustomerData();
     fetchSuggestedName();
+    if (userType === "multiple") {
+      fetchSuggestedNames();
+    }
   }, [userType, username]);
 
   const fetchSuggestedName = async () => {
@@ -76,6 +87,23 @@ export const UserDashboard = ({ userType, username }: UserDashboardProps) => {
     }
   };
 
+  const fetchSuggestedNames = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('suggested_names')
+        .select('*');
+
+      if (error) throw error;
+      setSuggestedNames(data || []);
+    } catch (error) {
+      console.error('Error fetching suggested names:', error);
+    }
+  };
+
+  const getSuggestedName = (mobileNumber: number): string | null => {
+    const suggested = suggestedNames.find(s => s.mobile_number === String(mobileNumber));
+    return suggested ? suggested.suggested_name : null;
+  };
   const saveSuggestedName = async () => {
     if (!tempName.trim()) return;
 
@@ -281,7 +309,9 @@ export const UserDashboard = ({ userType, username }: UserDashboardProps) => {
     <div className="space-y-6 animate-fade-in transition-all duration-500">
       <div className="text-center">
         <h2 className="text-3xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-green-600">
-          مرحباً {userType === "single" && customers.length > 0 ? customers[0].customer_name : username}
+          مرحباً {userType === "single" && customers.length > 0 ? 
+            (getSuggestedName(customers[0].mobile_number) || customers[0].customer_name) : 
+            username}
         </h2>
         
         {/* Suggested Name Section */}
@@ -353,16 +383,23 @@ export const UserDashboard = ({ userType, username }: UserDashboardProps) => {
         {customers.map((customer, index) => (
           <Card key={customer.id} className="animate-fade-in shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 border-l-4 border-l-blue-500 bg-black/80 text-white border-gray-600" style={{ animationDelay: `${index * 0.1}s` }}>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
                 <Wifi className="h-5 w-5 text-blue-600" />
-                بيانات الخط
+                  بيانات الخط
+                  {userType === "multiple" && getSuggestedName(customer.mobile_number) && (
+                    <span className="text-sm text-blue-400 font-normal">
+                      ({getSuggestedName(customer.mobile_number)})
+                    </span>
+                  )}
+                </div>
                 {(() => {
                   const alert = getRenewalAlert(customer.charging_date, null, customer.provider);
                   if (alert?.show) {
                     return (
                       <Badge 
                         variant="destructive" 
-                        className="ml-2 animate-pulse bg-red-600 text-white border-red-500"
+                        className="self-start animate-pulse bg-red-600 text-white border-red-500"
                       >
                         {alert.isToday ? 'التجديد اليوم!' : 
                          alert.isTomorrow ? 'التجديد غداً!' : 
@@ -406,6 +443,37 @@ export const UserDashboard = ({ userType, username }: UserDashboardProps) => {
                   <span className="text-orange-600 font-semibold">{formatRenewalWithProvider(customer.charging_date, null, customer.provider)}</span>
                 </div>
               </div>
+              
+              {/* رسالة معرفة الوحدات المتبقية للأورانج */}
+              {customer.provider === 'orange' && (
+                <div className="mt-4 p-4 bg-orange-900/30 border border-orange-600/50 rounded-lg">
+                  <h4 className="text-orange-400 font-semibold mb-2 flex items-center gap-2">
+                    <Wifi className="h-4 w-4" />
+                    معرفة الوحدات المتبقية
+                  </h4>
+                  <p className="text-gray-300 text-sm mb-3">
+                    لمعرفة الوحدات المتبقية في باقتك، اطلب الكود التالي (التكلفة: 4 قروش)
+                  </p>
+                  <div className="flex items-center gap-2 bg-gray-800/50 p-3 rounded border">
+                    <code className="text-orange-400 font-mono text-lg flex-1">*16*1*1#</code>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText('*16*1*1#');
+                        toast({
+                          title: "تم النسخ",
+                          description: "تم نسخ الكود بنجاح",
+                        });
+                      }}
+                      className="text-orange-400 border-orange-600 hover:bg-orange-900/20"
+                    >
+                      <Copy className="h-4 w-4 ml-1" />
+                      نسخ الكود
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}
